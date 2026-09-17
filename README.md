@@ -1,4 +1,4 @@
-# podcast-to-transcript
+# 小宇宙播客文稿笔记（podcast-to-transcript）
 
 把小宇宙播客单集转成文字稿的助手技能。给助手发一个小宇宙链接，它会抓取音频、用本地的 faster-whisper 转写，整理出一份带时间戳的文稿，再按内容类型整理成笔记。整个过程音频不出本机，不需要 ffmpeg。
 
