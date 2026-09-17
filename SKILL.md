@@ -67,6 +67,20 @@ C:/Users/lenovo/.workbuddy/binaries/python/envs/default/Scripts/python.exe \
 - HF 必须走镜像：`HF_ENDPOINT=https://hf-mirror.com`（脚本已内置）
 - 耗时预估：**音频时长 × 1.17**（small/int8/beam5）；`--beam 1` 约减半；`--model base` 再快一半但错字更多
 - 转写是长任务，**必须 run_in_background**，并用文稿尾部时间戳对总时长估算剩余进度，主动向用户汇报
+- **长音频自动分片**：音频 >120 分钟时自动按 30 分钟/片，无需加参数
+  - 分片文件落在 `audio/<音频名>.parts/`，**中断后重跑自动跳过已完成片**（断点续传）；`--no-resume` 强制全部重转
+  - 切点会自动挪到附近能量最低处，尽量不切在字中间
+  - 手动指定片长用 `--chunk-min M`（可为小数，便于自测）；`--chunk-min 0` 是默认的自动策略
+- 长音频换算（本机 20 核 / 23.7GB 内存实测口径）：
+
+  | 音频时长 | 转写耗时 | 解码占内存 |
+  |---|---|---|
+  | 1 小时 | ~70 分钟 | ~230 MB |
+  | 2 小时 | ~2.3 小时 | ~460 MB |
+  | 3 小时 | ~3.5 小时 | ~690 MB |
+  | 5 小时 | ~5.8 小时 | ~1.15 GB |
+
+  内存不是瓶颈，**时间是**——超过 3 小时的节目要提前跟用户说明，并确认任务跑完前不会关机/休眠
 
 ### 4. 后处理（转写完必做，别在读取阶段中断）
 - Whisper small 中文输出**同音字错误密集**，需按主题领域纠错。人名/朝代/战役/制度等专有名词几乎全错，按领域知识系统替换（例：「磨耳朵→摩耳朵」「元谋人→原某人」「事半功倍→失败功倍」「石器时代→时期时代」「打制/磨制石器→打着/摩制时期」「孙鹤峰→贺峰/超哥贺峰」「禅让→善让」「商纣王→商主王」「牧野之战→木野之战」「澶渊之盟→蚕银之盟」「纳土归宋→纳特归宋」）
@@ -134,3 +148,6 @@ C:/Users/lenovo/.workbuddy/binaries/python/envs/default/Scripts/python.exe \
 1. **HF snapshot symlink 损坏**：Windows 未开开发者模式时，`~/.cache/huggingface/hub/.../snapshots/` 下文件全是 0 字节，报 `File model.bin is incomplete: failed to read a value of size 4 at position 0`。**blob 实体其实完好**（snapshots 旁 blobs/ 目录），把 blob 拷成正常文件即可，无需重新下载。
 2. **耗时低估**：短句多的播客段数可达音频分钟数 ×30 以上，不要按"400-600 段"拍脑袋估时；用"音频时长 ×1.17"口径。
 3. 训练数据截止限制不存在，但small模型对专有名词（人名/朝代/战役）错字率高，领域纠错不可省。
+4. **长音频会复读**：`model.transcribe()` 的 `condition_on_previous_text` 默认 **True**（faster-whisper 1.2.1 的 transcribe.py 第 770 行），会把上一段输出当提示喂给下一段。音频超过 ~2 小时可能出现循环复读/整段重复，越往后越严重。本脚本用分片规避——每片是独立调用，上下文自然重置。
+5. **下载能力不要误解**：小宇宙 App/网页**不提供**下载按钮（防搬运），但音频直链是公开的，明文在单集页 `__NEXT_DATA__` 的 `enclosure.url` 里（指向 `media.xyzcdn.net`），`curl -L` 直接下，无需 Referer/UA。实测该 CDN 返回 `Accept-Ranges: bytes`，支持分段下载。
+6. **超长音频的会话风险**：3 小时以上的转写本身要跑 3.5 小时以上，期间若助手会话结束、机器休眠或断电，整条重跑代价极高。分片 + 续传就是为这个场景准备的；开工前提醒用户别关机。
