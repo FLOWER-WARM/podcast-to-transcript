@@ -1,89 +1,57 @@
-# podcast-to-transcript 🎙️→📝
+# podcast-to-transcript
 
-小宇宙播客单集链接 → 本地转写 → 结构化学习笔记，全程自动化、音频不出本机。
+把小宇宙播客单集转成文字稿的助手技能。给助手发一个小宇宙链接，它会抓取音频、用本地的 faster-whisper 转写，整理出一份带时间戳的文稿，再按内容类型整理成笔记。整个过程音频不出本机，不需要 ffmpeg。
 
-一个面向 AI CLI 助手（WorkBuddy / Claude Code 等）的**用户级 Skill**。安装后，把小宇宙单集链接发给助手并说「转文稿」，即可自动产出三件套：
+这个技能最初是为了把公考常识类播客转成复习笔记做的，后来发现访谈、新闻评论这类内容也用得上，笔记结构会根据内容自动调整。
 
-| 产出 | 说明 |
-|---|---|
-| **raw 原稿** | 带时间戳的逐字转写底稿 |
-| **整理版文稿** | 同音字纠错后的可读文稿 |
-| **结构化笔记** | 按主题分块 + 口诀保留 + 易错点清单 |
+## 它能做什么
 
-## 特点
-
-- **全程本地转写**：faster-whisper（CPU int8）+ av 自带解码，无需 ffmpeg，音频不上传任何第三方
-- **一条命令起步**：发链接即触发，助手按 SKILL.md 全流程执行
-- **踩坑即插即用**：内置 Windows HF symlink 损坏规避、hf-mirror 镜像、耗时预估公式（音频时长 × 1.17）
-- **笔记有模板**：主题分块表格、主播口诀保留、时间戳贯穿方便回听
+- 解析小宇宙单集页面，拿到标题、时长、音频地址（不提供文字稿的节目也能转）
+- 本地转写，支持 m4a/mp3，不用装 ffmpeg
+- 转写结果按说话内容分段，带时间戳，方便回听定位
+- Whisper 中文输出会有不少同音字错误（比如"元谋人"变"原某人"），技能会按内容领域做纠正，再整理成笔记
+- 笔记结构跟着内容走：知识讲解类整理成考点和易错点，访谈类整理成观点摘要和原话引用，新闻类整理成事实和时间线
 
 ## 安装
 
-### 1. 复制技能
+把仓库克隆下来，复制到助手的技能目录：
 
 ```bash
-# Windows
-git clone https://github.com/<你的用户名>/podcast-to-transcript.git
+git clone https://github.com/FLOWER-WARM/podcast-to-transcript.git
+
+# Windows，复制到
 xcopy /E /I podcast-to-transcript "%USERPROFILE%\.workbuddy\skills\podcast-to-transcript"
 
 # macOS / Linux
-git clone https://github.com/<你的用户名>/podcast-to-transcript.git
 cp -r podcast-to-transcript ~/.workbuddy/skills/
 ```
 
-### 2. 装依赖（建议独立 venv）
+装依赖，建议建个虚拟环境，别装到全局：
 
 ```bash
 python -m venv .venv
-# Windows
-.venv\Scripts\python.exe -m pip install -r requirements.txt
-# macOS / Linux
-.venv/bin/python -m pip install -r requirements.txt
+.venv\Scripts\python.exe -m pip install -r requirements.txt   # Windows
+.venv/bin/python -m pip install -r requirements.txt           # macOS / Linux
 ```
 
-仅依赖 `faster-whisper`（自动带上 ctranslate2/av），**无需系统 ffmpeg**。
-
-### 3. 首次运行
-
-首次转写会从 hf-mirror.com（HuggingFace 国内镜像）下载模型权重（small 约 483MB），之后秒加载。
+依赖只有 faster-whisper 一个，首次转写会自动下载模型（small 版约 483MB，走国内镜像）。
 
 ## 使用
 
-把小宇宙单集链接发给装了本技能的助手：
-
-> `https://www.xiaoyuzhoufm.com/episode/xxxx` 转文稿
-
-可选参数（在 SKILL.md 中说明）：
-- 快速模式：`--beam 1`（约省一半时间，错字略多）
-- 精准模式：`--model medium`（更准，CPU 上约慢一倍）
-
-## 文件结构
+对装了这个技能的助手发一句：
 
 ```
-podcast-to-transcript/
-├── SKILL.md            # 技能说明：流程、参数、踩坑记录（助手读取执行）
-├── requirements.txt    # Python 依赖
-├── README.md
-├── LICENSE
-└── scripts/
-    ├── fetch_episode.py    # 解析小宇宙单集页 → 元数据 + 音频直链
-    └── transcribe.py       # faster-whisper 本地转写（CPU int8）
+https://www.xiaoyuzhoufm.com/episode/xxxx 转文稿
 ```
 
-## 耗时参考
+剩下的助手自己会做。转写速度参考：CPU 上跑 42 分钟的音频大约 50 分钟，`--beam 1` 能快一半但错字会多一点，有 N 卡的话改 CUDA 几分钟就完。
 
-| 配置 | 42 分钟音频 |
-|---|---|
-| CPU int8 + beam5 | 约 50 分钟 |
-| CPU int8 + beam1 | 约 25 分钟 |
-| NVIDIA CUDA | 5–10 分钟 |
+## 说明
 
-## 隐私与版权
-
-- 转写**全程本地**，网络请求仅两处：抓取小宇宙公开单集页、下载音频直链
-- 模型权重从 hf-mirror.com 下载（数据文件，不执行远程代码）；可自行改官方源
-- 播客音频有版权，转写仅供个人学习，请勿商用或传播
+- 转写完全在本地进行，联网只发生在抓取单集页面和下载音频这两步
+- 模型从 hf-mirror.com 下载，只是数据文件；介意的话可以自己改官方源
+- 播客内容有版权，转写仅供个人学习
 
 ## License
 
-[MIT](LICENSE)
+MIT
