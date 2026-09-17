@@ -24,6 +24,22 @@ description: 小宇宙/播客链接转文字稿。当用户发来小宇宙(xiaoy
 - 无需系统 ffmpeg（faster-whisper 的 `av` 包自带解码，m4a/mp3 直接吃）
 - 本技能脚本目录：`~/.workbuddy/skills/podcast-to-transcript/scripts/`（其他机器按安装节自行替换 venv 路径）
 
+## 输出目录约定（每期都照这个放）
+
+固定在工作区内建这几个目录，**顺次累积，不覆盖、不另起目录**：
+
+| 目录/文件 | 放什么 | 命名 |
+|---|---|---|
+| `笔记/` | **最终笔记**（唯一交付重点） | `ep<NN>-<主题>.md`，如 `ep02-中国古代历史.md` |
+| `文稿/` | 转写产物两份 | `ep<NN>-raw.txt`（原始底稿）、`ep<NN>-整理版.md`（纠错后） |
+| `audio/` | 音频（下完即留，可重下） | `ep<NN>.m4a` |
+| `model-small/` | 本地模型权重，跨期复用 | 不动 |
+
+- 往 `笔记/` 写之前先 `ls` 一下，**确认没有同名文件**；同名则加主题后缀区分，绝不覆盖旧笔记
+- 目录不存在就 `mkdir -p` 建出来
+- 集数从单集页标题/播客页序号取；取不到就用日期 `YYYYMMDD-<主题>.md`
+- 交付时同时给出 `笔记/` 里的本期笔记与 `文稿/` 两份，笔记排第一
+
 ## 流程
 
 ### 1. 解析单集页
@@ -38,14 +54,15 @@ python ~/.workbuddy/skills/podcast-to-transcript/scripts/fetch_episode.py <url>
 
 ### 2. 下载音频
 ```bash
-curl -sSL -o audio/ep.m4a "<audio_url>"
+mkdir -p audio 文稿 笔记
+curl -sSL -o audio/ep02.m4a "<audio_url>"
 ```
 - `media.xyzcdn.net` 直链公开可下；**必须 `-L` 跟随重定向**
 
 ### 3. 转写
 ```bash
 C:/Users/lenovo/.workbuddy/binaries/python/envs/default/Scripts/python.exe \
-  ~/.workbuddy/skills/podcast-to-transcript/scripts/transcribe.py audio/ep.m4a <out>.txt
+  ~/.workbuddy/skills/podcast-to-transcript/scripts/transcribe.py audio/ep02.m4a 文稿/ep02-raw.txt
 ```
 - HF 必须走镜像：`HF_ENDPOINT=https://hf-mirror.com`（脚本已内置）
 - 耗时预估：**音频时长 × 1.17**（small/int8/beam5）；`--beam 1` 约减半；`--model base` 再快一半但错字更多
@@ -73,7 +90,7 @@ C:/Users/lenovo/.workbuddy/binaries/python/envs/default/Scripts/python.exe \
 - 讲者口误按事实修正并在笔记末尾集中说明，不冒充原话
 - 结尾给一段「一句话总结」：这期值得听的价值点
 - 判断不了类型时，按知识类的主题分块结构走，把表格列名换成该内容的核心维度
-- 交付永远是三件：raw 原稿、纠错整理版文稿、笔记，一起 present
+- 交付永远是三件：`笔记/epNN-主题.md`、`文稿/epNN-整理版.md`、`文稿/epNN-raw.txt`，笔记排第一，一起 present
 
 ## 踩坑记录（Windows）
 
